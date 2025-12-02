@@ -1,22 +1,26 @@
+require("dotenv").config(); // Make sure you have a .env file
+
 const fs = require("fs");
 const path = require("path");
 const express = require("express");
-const bodyParser = require("body-parser");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const helmet = require("helmet");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Security middleware
 app.use(helmet());
 app.use(
   cors({
-    origin: "*",
+    origin: process.env.CORS_ORIGIN || "*", // e.g. "https://yourdomain.com"
     methods: ["GET", "POST"],
   })
 );
+
+// If you're behind a proxy (e.g. Render, Vercel, Nginx)
+app.set("trust proxy", 1);
 
 // Simple rate limiting implementation
 const ipRequestCounts = {};
@@ -27,7 +31,6 @@ function simpleRateLimiter(req, res, next) {
   const ip = req.ip || req.connection.remoteAddress;
   const now = Date.now();
 
-  // Initialize or cleanup old data
   if (!ipRequestCounts[ip] || now - ipRequestCounts[ip].timestamp > WINDOW_MS) {
     ipRequestCounts[ip] = {
       count: 0,
@@ -35,10 +38,8 @@ function simpleRateLimiter(req, res, next) {
     };
   }
 
-  // Increment request count
   ipRequestCounts[ip].count += 1;
 
-  // Check if over limit
   if (ipRequestCounts[ip].count > MAX_REQUESTS) {
     return res.status(429).json({
       success: false,
@@ -49,46 +50,44 @@ function simpleRateLimiter(req, res, next) {
   next();
 }
 
-// Parse form data
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// Parse JSON & form data
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Email transporter setup with hardcoded credentials
+// Email transporter setup using environment variables
 const transporter = nodemailer.createTransport({
-  service: "Gmail",
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: Number(process.env.SMTP_PORT) || 465,
+  secure: true,
   auth: {
-    user: "chukwukerenoble98@gmail.com",
-    pass: "spxuzulyfbfylqcc",
+    user: process.env.SMTP_USER, // e.g. your Gmail address
+    pass: process.env.SMTP_PASS, // e.g. your app password
   },
 });
 
-app.get("/", (req, res) => {
-  res.send("Hello World");
-});
+const FROM_EMAIL = process.env.FROM_EMAIL || process.env.SMTP_USER;
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.SMTP_USER; // where form notifications go
 
-// Simple email endpoint
-app.get("/test", function (req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+// Helper to render template with placeholders
+function renderTemplate(fileName, replacements = {}) {
+  const templatePath = path.join(__dirname, fileName);
+  let content = fs.readFileSync(templatePath, "utf8");
 
-  const mailOptions = {
-    from: "chukwukerenoble98@gmail.com",
-    to: "nobleosinachi98@gmail.com",
-    subject: "Hello from Nodemailer",
-    text: "Today's date is " + new Date(),
-  };
-
-  transporter.sendMail(mailOptions, function (error, info) {
-    if (error) {
-      console.log("Error sending email: " + error);
-      res.status(500).send("Error sending email");
-    } else {
-      console.log("Email sent: " + info.response);
-      res.status(250).send("Email sent successfully");
-    }
+  Object.entries(replacements).forEach(([key, value]) => {
+    const regex = new RegExp(`\\$${key}`, "g");
+    content = content.replace(regex, value);
   });
+
+  return content;
+}
+
+// Health check
+app.get("/", (req, res) => {
+  res.send("OK");
 });
 
-app.post("/homepage-form", simpleRateLimiter, async (req, res) => {
+// ---- SHARED FORM HANDLER ----
+async function handleFormSubmission(req, res) {
   try {
     const { name, email, project, message } = req.body;
 
@@ -105,125 +104,39 @@ app.post("/homepage-form", simpleRateLimiter, async (req, res) => {
         .json({ success: false, message: "Invalid email address" });
     }
 
-    // Read and personalize notification email
-    const notificationEmailPath = path.join(
-      __dirname,
-      "email_notification_template.html"
+    const replacements = {
+      name,
+      email,
+      project,
+      message: message.replace(/\n/g, "<br>"),
+    };
+
+    // Notification email to you
+    const notificationHtml = renderTemplate(
+      "email_notification_template.html",
+      replacements
     );
-    let notificationEmail = fs.readFileSync(notificationEmailPath, "utf8");
-    notificationEmail = notificationEmail
-      .replace(/\$name/g, name)
-      .replace(/\$email/g, email)
-      .replace(/\$project/g, project)
-      .replace(/\$message/g, message.replace(/\n/g, "<br>"));
 
     await transporter.sendMail({
-      from: "chukwukerenoble98@gmail.com",
-      to: "nobleosinachi98@gmail.com",
+      from: FROM_EMAIL,
+      to: ADMIN_EMAIL,
       subject: `New Contact Form Submission: ${project}`,
-      html: notificationEmail,
+      html: notificationHtml,
       replyTo: email,
     });
 
-    // Confirmation email
-    const templatePath = path.join(__dirname, "email_template.html");
-    let template = fs.readFileSync(templatePath, "utf8");
-    template = template
-      .replace(/\$name/g, name)
-      .replace(/\$email/g, email)
-      .replace(/\$project/g, project)
-      .replace(/\$message/g, message.replace(/\n/g, "<br>"));
+    // Confirmation email to user
+    const confirmationHtml = renderTemplate(
+      "email_template.html",
+      replacements
+    );
 
     await transporter.sendMail({
-      from: "chukwukerenoble98@gmail.com",
+      from: FROM_EMAIL,
       to: email,
       subject: "Thank you for your inquiry",
-      html: template,
+      html: confirmationHtml,
     });
-
-    res.status(200).json({
-      success: true,
-      message: "Form submitted successfully! We will contact you soon.",
-    });
-  } catch (error) {
-    console.error("Form submission error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Something went wrong. Please try again later.",
-    });
-  }
-});
-
-// GET endpoint for /video-editor-form - redirects to your website
-app.get("/video-editor-form", (req, res) => {
-  res.redirect("https://nobleosinachi.github.io/video-editor");
-});
-
-// Form submission endpoint with rate limiting
-app.post("/video-editor-form", simpleRateLimiter, async (req, res) => {
-  try {
-    const { name, email, project, message } = req.body;
-
-    if (!name || !email || !project || !message) {
-      return res.status(400).json({
-        success: false,
-        message: "All fields are required",
-      });
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid email address",
-      });
-    }
-
-    // --- Read and personalize email_template.html ---
-    const notificationEmailPath = path.join(
-      __dirname,
-      "email_notification_template.html"
-    );
-    let notificationEmail = fs.readFileSync(notificationEmailPath, "utf8");
-
-    // Replace placeholders in template
-    notificationEmail = notificationEmail
-      .replace(/\$name/g, name)
-      .replace(/\$email/g, email)
-      .replace(/\$project/g, project)
-      .replace(/\$message/g, message.replace(/\n/g, "<br>"));
-
-    // --- Send email to Noble ---
-    const mailOptions = {
-      from: "chukwukerenoble98@gmail.com",
-      to: "nobleosinachi98@gmail.com",
-      subject: `New Contact Form Submission: ${project}`,
-      html: notificationEmail,
-      replyTo: email,
-    };
-
-    await transporter.sendMail(mailOptions);
-
-    // --- Read and personalize email_template.html ---
-    const templatePath = path.join(__dirname, "email_template.html");
-    let template = fs.readFileSync(templatePath, "utf8");
-
-    // Replace placeholders in template
-    template = template
-      .replace(/\$name/g, name)
-      .replace(/\$email/g, email)
-      .replace(/\$project/g, project)
-      .replace(/\$message/g, message.replace(/\n/g, "<br>"));
-
-    // --- Send confirmation email to user ---
-    const confirmationEmail = {
-      from: "chukwukerenoble98@gmail.com",
-      to: email,
-      subject: "Thank you for your inquiry",
-      html: template,
-    };
-
-    await transporter.sendMail(confirmationEmail);
 
     return res.status(200).json({
       success: true,
@@ -236,12 +149,25 @@ app.post("/video-editor-form", simpleRateLimiter, async (req, res) => {
       message: "Something went wrong. Please try again later.",
     });
   }
+}
+
+// Homepage form
+app.post("/homepage-form", simpleRateLimiter, handleFormSubmission);
+
+// Video editor form – redirect (GET)
+app.get("/video-editor-form", (req, res) => {
+  res.redirect(
+    process.env.VIDEO_EDITOR_URL ||
+      "https://nobleosinachi.github.io/video-editor"
+  );
 });
 
-// Serve static files (if needed)
-app.use(express.static("public"));
+// Video editor form – handle POST
+app.post("/video-editor-form", simpleRateLimiter, handleFormSubmission);
 
-// Start the server
+// (Optional) Static files if you still need them
+// app.use(express.static("public"));
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
