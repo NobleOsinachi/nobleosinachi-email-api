@@ -69,7 +69,7 @@ const FROM_EMAIL = process.env.FROM_EMAIL || process.env.SMTP_USER;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.SMTP_USER; // where form notifications go
 
 // Helper to render template with placeholders
-function renderTemplate(fileName, replacements = {}) {
+function renderTemplateOriginal(fileName, replacements = {}) {
   const templatePath = path.join(__dirname, fileName);
   let content = fs.readFileSync(templatePath, "utf8");
 
@@ -79,6 +79,25 @@ function renderTemplate(fileName, replacements = {}) {
   });
 
   return content;
+}
+
+function renderTemplate(fileName, replacements = {}) {
+  try {
+    const templatePath = path.join(__dirname, fileName);
+    console.log("Reading template at:", templatePath);
+
+    let content = fs.readFileSync(templatePath, "utf8");
+
+    Object.entries(replacements).forEach(([key, value]) => {
+      const regex = new RegExp(`\\$${key}`, "g");
+      content = content.replace(regex, value);
+    });
+
+    return content;
+  } catch (err) {
+    console.error(`Failed to read template ${fileName}:`, err);
+    return `<p>Hi ${replacements.name}, thank you for your message!</p>`; // simple fallback
+  }
 }
 
 // Health check
