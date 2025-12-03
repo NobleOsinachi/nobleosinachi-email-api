@@ -1,29 +1,28 @@
-require("dotenv").config();
+require("dotenv").config(); // Make sure you have a .env file
 
 const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
+const nodemailer = require("nodemailer");
 const helmet = require("helmet");
-const { Resend } = require("resend");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ----- SECURITY & CORS -----
+// Security middleware
 app.use(helmet());
-
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "*", // e.g. "https://nobleosinachi.github.io"
-    methods: ["GET", "POST", "OPTIONS"],
+    origin: process.env.CORS_ORIGIN || "*", // e.g. "https://yourdomain.com"
+    methods: ["GET", "POST"],
   })
 );
 
-// If you're behind a proxy (Render, etc.)
+// If you're behind a proxy (e.g. Render, Vercel, Nginx)
 app.set("trust proxy", 1);
 
-// ----- RATE LIMITING -----
+// Simple rate limiting implementation
 const ipRequestCounts = {};
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const MAX_REQUESTS = 5;
@@ -51,18 +50,37 @@ function simpleRateLimiter(req, res, next) {
   next();
 }
 
-// ----- BODY PARSING -----
+// Parse JSON & form data
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ----- RESEND SETUP -----
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Email transporter setup using environment variables
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: Number(process.env.SMTP_PORT) || 465,
+  secure: true,
+  auth: {
+    user: process.env.SMTP_USER, // e.g. your Gmail address
+    pass: process.env.SMTP_PASS, // e.g. your app password
+  },
+});
 
-const FROM_EMAIL =
-  process.env.FROM_EMAIL || "Noble Media <onboarding@resend.dev>";
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "nobleosinachi98@gmail.com";
+const FROM_EMAIL = process.env.FROM_EMAIL || process.env.SMTP_USER;
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.SMTP_USER; // where form notifications go
 
-// ----- TEMPLATE HELPER -----
+// Helper to render template with placeholders
+function renderTemplateOriginal(fileName, replacements = {}) {
+  const templatePath = path.join(__dirname, fileName);
+  let content = fs.readFileSync(templatePath, "utf8");
+
+  Object.entries(replacements).forEach(([key, value]) => {
+    const regex = new RegExp(`\\$${key}`, "g");
+    content = content.replace(regex, value);
+  });
+
+  return content;
+}
+
 function renderTemplate(fileName, replacements = {}) {
   try {
     const templatePath = path.join(__dirname, fileName);
@@ -78,17 +96,16 @@ function renderTemplate(fileName, replacements = {}) {
     return content;
   } catch (err) {
     console.error(`Failed to read template ${fileName}:`, err);
-    // simple fallback
-    return `<p>Hi ${replacements.name || "there"}, thank you for your message!</p>`;
+    return `<p>Hi ${replacements.name}, thank you for your message!</p>`; // simple fallback
   }
 }
 
-// ----- HEALTH CHECK -----
+// Health check
 app.get("/", (req, res) => {
   res.send("OK");
 });
 
-// ----- SHARED FORM HANDLER (HOMEPAGE + VIDEO EDITOR) -----
+// ---- SHARED FORM HANDLER ----
 async function handleFormSubmission(req, res) {
   try {
     const { name, email, project, message } = req.body;
@@ -113,39 +130,32 @@ async function handleFormSubmission(req, res) {
       message: message.replace(/\n/g, "<br>"),
     };
 
-    // ----- Notification email (to you) -----
+    // Notification email to you
     const notificationHtml = renderTemplate(
       "email_notification_template.html",
       replacements
     );
 
-    const notifyResult = await resend.emails.send({
+    await transporter.sendMail({
       from: FROM_EMAIL,
       to: ADMIN_EMAIL,
       subject: `New Contact Form Submission: ${project}`,
       html: notificationHtml,
-      reply_to: email,
+      replyTo: email,
     });
 
-    if (notifyResult.error) {
-      console.error("Error sending notification email:", notifyResult.error);
-      throw new Error(notifyResult.error.message);
-    }
+    // Confirmation email to user
+    const confirmationHtml = renderTemplate(
+      "email_template.html",
+      replacements
+    );
 
-    // ----- Confirmation email (to user) -----
-    const confirmationHtml = renderTemplate("email_template.html", replacements);
-
-    const confirmResult = await resend.emails.send({
+    await transporter.sendMail({
       from: FROM_EMAIL,
       to: email,
       subject: "Thank you for your inquiry",
       html: confirmationHtml,
     });
-
-    if (confirmResult.error) {
-      console.error("Error sending confirmation email:", confirmResult.error);
-      throw new Error(confirmResult.error.message);
-    }
 
     return res.status(200).json({
       success: true,
@@ -159,8 +169,6 @@ async function handleFormSubmission(req, res) {
     });
   }
 }
-
-// ----- ROUTES -----
 
 // Homepage form
 app.post("/homepage-form", simpleRateLimiter, handleFormSubmission);
@@ -176,7 +184,9 @@ app.get("/video-editor-form", (req, res) => {
 // Video editor form – handle POST
 app.post("/video-editor-form", simpleRateLimiter, handleFormSubmission);
 
-// ----- START SERVER -----
+// (Optional) Static files if you still need them
+// app.use(express.static("public"));
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
