@@ -58,8 +58,7 @@ app.use(express.urlencoded({ extended: true }));
 // ----- RESEND SETUP -----
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL =
-  process.env.FROM_EMAIL || "Noble Media <onboarding@resend.dev>";
+const FROM_EMAIL = "Noble Osinachi <onboarding@resend.dev>";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "nobleosinachi98@gmail.com";
 
 // ----- TEMPLATE HELPER -----
@@ -79,7 +78,9 @@ function renderTemplate(fileName, replacements = {}) {
   } catch (err) {
     console.error(`Failed to read template ${fileName}:`, err);
     // simple fallback
-    return `<p>Hi ${replacements.name || "there"}, thank you for your message!</p>`;
+    return `<p>Hi ${
+      replacements.name || "there"
+    }, thank you for your message!</p>`;
   }
 }
 
@@ -133,7 +134,10 @@ async function handleFormSubmission(req, res) {
     }
 
     // ----- Confirmation email (to user) -----
-    const confirmationHtml = renderTemplate("email_template.html", replacements);
+    const confirmationHtml = renderTemplate(
+      "email_template.html",
+      replacements
+    );
 
     const confirmResult = await resend.emails.send({
       from: FROM_EMAIL,
