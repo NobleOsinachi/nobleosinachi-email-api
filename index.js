@@ -94,10 +94,7 @@ app.get("/", (req, res) => {
 });
 
 // ----- SHARED FORM HANDLER (HOMEPAGE + VIDEO EDITOR) -----
-async function handleFormSubmission(req, res,
-
-  emailAddress = ADMIN_EMAIL
-) {
+async function handleFormSubmission(req, res, emailAddress = ADMIN_EMAIL) {
   try {
     const {
       name,
@@ -206,6 +203,7 @@ app.post("/video-editor-form", simpleRateLimiter, (req, res) => {
 });
 
 // Joan's website form
+// https://unyii.github.io/#contact
 app.post("/joan-form", simpleRateLimiter, (req, res) => {
   handleFormSubmission(
     req,
