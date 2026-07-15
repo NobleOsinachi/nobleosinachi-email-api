@@ -93,8 +93,15 @@ app.get("/", (req, res) => {
   res.send("OK");
 });
 
+
 // ----- SHARED FORM HANDLER (HOMEPAGE + VIDEO EDITOR) -----
-async function handleFormSubmission(req, res, emailAddress = ADMIN_EMAIL) {
+async function handleFormSubmission(
+  req,
+  res,
+  emailAddress = ADMIN_EMAIL,
+  emailToMe = "email_template_for_noble.html",
+  emailToClient = "email_template_for_client.html"
+) {
   try {
     const {
       name,
@@ -131,7 +138,7 @@ async function handleFormSubmission(req, res, emailAddress = ADMIN_EMAIL) {
 
     // ----- Notification email (to you) -----
     const notificationHtml = renderTemplate(
-      "email_notification_template.html",
+      emailToMe,
       replacements
     );
 
@@ -150,7 +157,7 @@ async function handleFormSubmission(req, res, emailAddress = ADMIN_EMAIL) {
 
     // ----- Confirmation email (to user) -----
     const confirmationHtml = renderTemplate(
-      "email_template.html",
+      emailToClient,
       replacements
     );
 
@@ -180,8 +187,6 @@ async function handleFormSubmission(req, res, emailAddress = ADMIN_EMAIL) {
 }
 
 
-
-
 // ----- ROUTES -----
 
 // Homepage form
@@ -208,7 +213,10 @@ app.post("/joan-form", simpleRateLimiter, (req, res) => {
   handleFormSubmission(
     req,
     res,
-    process.env.JOAN_EMAIL || "nobleosinachi@outlook.com" //"sylvesterjoannaunyii@gmail.com"
+    process.env.JOAN_EMAIL || "nobleosinachi@outlook.com" //"sylvesterjoannaunyii@gmail.com"   
+    ,
+    "email_to_joan.html",
+    "email_to_client.html"
   );
 });
 
