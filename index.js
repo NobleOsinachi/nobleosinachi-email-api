@@ -164,7 +164,7 @@ async function handleFormSubmission(
     );
 
     const confirmResult = await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: email,
       subject: "Thank you for your inquiry",
       html: confirmationHtml,
