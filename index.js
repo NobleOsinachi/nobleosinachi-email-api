@@ -62,7 +62,7 @@ app.use(express.urlencoded({
 // ----- RESEND SETUP -----
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = "Noble Osinachi <onboarding@resend.dev>";
+const FROM_EMAIL = "Noble Osinachi <contact@nobleosinachi.com>";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "nobleosinachi98@gmail.com";
 
 // ----- TEMPLATE HELPER -----
