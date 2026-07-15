@@ -5,7 +5,9 @@ const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
-const { Resend } = require("resend");
+const {
+  Resend
+} = require("resend");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,7 +17,7 @@ app.use(helmet());
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "*", // e.g. "https://nobleosinachi.github.io"
+    origin: process.env.CORS_ORIGIN || "*", // e.g. "https://nobleosinachi.com"
     methods: ["GET", "POST", "OPTIONS"],
   })
 );
@@ -53,7 +55,9 @@ function simpleRateLimiter(req, res, next) {
 
 // ----- BODY PARSING -----
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({
+  extended: true
+}));
 
 // ----- RESEND SETUP -----
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -92,19 +96,30 @@ app.get("/", (req, res) => {
 // ----- SHARED FORM HANDLER (HOMEPAGE + VIDEO EDITOR) -----
 async function handleFormSubmission(req, res) {
   try {
-    const { name, email, project, message } = req.body;
+    const {
+      name,
+      email,
+      project,
+      message
+    } = req.body;
 
     if (!name || !email || !project || !message) {
       return res
         .status(400)
-        .json({ success: false, message: "All fields are required" });
+        .json({
+          success: false,
+          message: "All fields are required"
+        });
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res
         .status(400)
-        .json({ success: false, message: "Invalid email address" });
+        .json({
+          success: false,
+          message: "Invalid email address"
+        });
     }
 
     const replacements = {
@@ -173,12 +188,17 @@ app.post("/homepage-form", simpleRateLimiter, handleFormSubmission);
 app.get("/video-editor-form", (req, res) => {
   res.redirect(
     process.env.VIDEO_EDITOR_URL ||
-      "https://nobleosinachi.github.io/video-editor"
+    "https://nobleosinachi.com/video-editor"
   );
 });
 
 // Video editor form – handle POST
 app.post("/video-editor-form", simpleRateLimiter, handleFormSubmission);
+
+app.post("/joan-form", simpleRateLimiter, async (req, res) => {
+  // same logic as handleFormSubmission
+  // I LOVE YOU FOREVER, JOAN!
+});
 
 // ----- START SERVER -----
 app.listen(PORT, () => {

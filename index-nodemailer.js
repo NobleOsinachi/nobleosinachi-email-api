@@ -177,7 +177,7 @@ app.post("/homepage-form", simpleRateLimiter, handleFormSubmission);
 app.get("/video-editor-form", (req, res) => {
   res.redirect(
     process.env.VIDEO_EDITOR_URL ||
-      "https://nobleosinachi.github.io/video-editor"
+      "https://nobleosinachi.com/video-editor"
   );
 });
 
