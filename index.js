@@ -94,7 +94,10 @@ app.get("/", (req, res) => {
 });
 
 // ----- SHARED FORM HANDLER (HOMEPAGE + VIDEO EDITOR) -----
-async function handleFormSubmission(req, res) {
+async function handleFormSubmission(req, res,
+
+  emailAddress = ADMIN_EMAIL
+) {
   try {
     const {
       name,
@@ -137,7 +140,7 @@ async function handleFormSubmission(req, res) {
 
     const notifyResult = await resend.emails.send({
       from: FROM_EMAIL,
-      to: ADMIN_EMAIL,
+      to: emailAddress,
       subject: `New Contact Form Submission: ${project}`,
       html: notificationHtml,
       reply_to: email,
@@ -179,10 +182,15 @@ async function handleFormSubmission(req, res) {
   }
 }
 
+
+
+
 // ----- ROUTES -----
 
 // Homepage form
-app.post("/homepage-form", simpleRateLimiter, handleFormSubmission);
+app.post("/homepage-form", simpleRateLimiter, (req, res) => {
+  handleFormSubmission(req, res);
+});
 
 // Video editor form – redirect (GET)
 app.get("/video-editor-form", (req, res) => {
@@ -193,12 +201,21 @@ app.get("/video-editor-form", (req, res) => {
 });
 
 // Video editor form – handle POST
-app.post("/video-editor-form", simpleRateLimiter, handleFormSubmission);
-
-app.post("/joan-form", simpleRateLimiter, async (req, res) => {
-  // same logic as handleFormSubmission
-  // I LOVE YOU FOREVER, JOAN!
+app.post("/video-editor-form", simpleRateLimiter, (req, res) => {
+  handleFormSubmission(req, res);
 });
+
+// Joan's website form
+app.post("/joan-form", simpleRateLimiter, (req, res) => {
+  handleFormSubmission(
+    req,
+    res,
+    process.env.JOAN_EMAIL || "nobleosinachi@outlook.com" //"sylvesterjoannaunyii@gmail.com"
+  );
+});
+
+
+
 
 // ----- START SERVER -----
 app.listen(PORT, () => {
