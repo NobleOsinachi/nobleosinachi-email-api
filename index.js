@@ -63,7 +63,7 @@ app.use(express.urlencoded({
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = "Noble Osinachi <contact@nobleosinachi.com>";
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "nobleosinachi98@gmail.com";
+const ADMIN_EMAIL = "nobleosinachi98@gmail.com";
 
 // ----- TEMPLATE HELPER -----
 function renderTemplate(fileName, replacements = {}) {
@@ -100,7 +100,9 @@ async function handleFormSubmission(
   res,
   emailAddress = ADMIN_EMAIL,
   emailToMe = "email_template_for_noble.html",
-  emailToClient = "email_template_for_client.html"
+  emailToClient = "email_template_for_client.html",
+  fromEmail = FROM_EMAIL,
+
 ) {
   try {
     const {
@@ -143,11 +145,11 @@ async function handleFormSubmission(
     );
 
     const notifyResult = await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromEmail,
       to: emailAddress,
       subject: `New Contact Form Submission: ${project}`,
       html: notificationHtml,
-      reply_to: email,
+      reply_to: emailAddress,
     });
 
     if (notifyResult.error) {
@@ -216,11 +218,10 @@ app.post("/joan-form", simpleRateLimiter, (req, res) => {
     process.env.JOAN_EMAIL || "nobleosinachi@outlook.com" //"sylvesterjoannaunyii@gmail.com"   
     ,
     "email_to_joan.html",
-    "email_to_client.html"
+    "email_to_client.html",
+    "Joanna Sylvester <joan@nobleosinachi.com>"
   );
 });
-
-
 
 
 // ----- START SERVER -----
